@@ -1,0 +1,110 @@
+version: '3.8'
+
+# trading-data-service – 独立部署
+#
+# 使用方法:
+#   cp .env.example .env   # 编辑 .env 填入配置
+#   docker compose up -d
+#
+# 外部数据库:
+#   设置 MONGODB_HOST / REDIS_HOST 为宿主机 IP 即可连接外部实例
+
+services:
+
+  # ── 数据管理服务 ─────────────────────────────────────────
+  data-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trading-data-service:latest
+    container_name: trading-data-service
+    ports:
+      - "${PORT:-8001}:8001"
+    volumes:
+      - ./logs:/app/logs
+      - ./cache:/app/cache
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: "Asia/Shanghai"
+      DOCKER_CONTAINER: "true"
+      MONGODB_HOST: "${MONGODB_HOST:-mongodb}"
+      REDIS_HOST: "${REDIS_HOST:-redis}"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ── MongoDB ──────────────────────────────────────────────
+  mongodb:
+    image: mongo:6.0
+    container_name: trading-data-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGODB_EXPOSE_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGODB_USERNAME:-admin}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
+      MONGO_INITDB_DATABASE: "${MONGODB_DATABASE:-tradingagents}"
+      TZ: "Asia/Shanghai"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: trading-data-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_EXPOSE_PORT:-6379}:6379"
+    environment:
+      TZ: "Asia/Shanghai"
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass "${REDIS_PASSWORD:-tradingagents123}"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,30 @@
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Database / cache
+motor>=3.3.0
+pymongo>=4.0.0
+redis>=5.0.0
+
+# Auth
+PyJWT>=2.0.0
+
+# Data sources
+akshare>=1.10.0
+baostock>=0.8.8
+tushare>=1.2.89
+yfinance>=0.2.18
+
+# Data processing
+pandas>=2.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Dev / test
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0

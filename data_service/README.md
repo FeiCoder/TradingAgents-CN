@@ -167,3 +167,61 @@ curl http://localhost:8001/api/markets/CN/providers \
 ```bash
 python -m pytest tests/test_data_service.py -v
 ```
+
+---
+
+## 将 data_service 抽离为独立 git 仓库
+
+`data_service/standalone/` 目录包含了将本模块提取为独立项目所需的全部文件，一条命令即可完成：
+
+```bash
+# 在 TradingAgents-CN 项目根目录下执行
+chmod +x data_service/standalone/extract.sh
+./data_service/standalone/extract.sh ~/projects/trading-data-service
+```
+
+脚本会在目标路径生成以下结构（完整的独立 git 仓库）：
+
+```
+trading-data-service/
+├── data_service/        ← Python 包（原 data_service/ 内容）
+│   ├── __init__.py
+│   ├── main.py
+│   ├── config.py
+│   ├── db/
+│   ├── layers/
+│   ├── models/
+│   ├── routers/
+│   └── services/
+├── tests/               ← 独立测试套件
+│   └── test_data_service.py
+├── pyproject.toml       ← Python 包定义
+├── requirements.txt     ← 直接 pip 安装依赖
+├── Dockerfile           ← 独立镜像（无 tradingagents 依赖）
+├── docker-compose.yml   ← 独立部署
+├── .gitignore
+├── .env.example
+├── VERSION
+└── README.md
+```
+
+完成后按提示推送到新的远程仓库：
+
+```bash
+cd ~/projects/trading-data-service
+git remote add origin https://github.com/<你的用户名>/trading-data-service.git
+git push -u origin main
+```
+
+> **手动提取**（如果不想运行脚本）：
+>
+> ```bash
+> mkdir trading-data-service && cd trading-data-service
+> git init -b main
+> cp -r /path/to/TradingAgents-CN/data_service .
+> cp data_service/standalone/{pyproject.toml,requirements.txt,Dockerfile,docker-compose.yml,VERSION,README.md} .
+> cp data_service/standalone/.gitignore data_service/standalone/.env.example .
+> cp -r data_service/tests tests
+> rm -rf data_service/standalone
+> git add . && git commit -m "feat: initial commit"
+> ```

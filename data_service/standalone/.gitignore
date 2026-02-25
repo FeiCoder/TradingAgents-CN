@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets  ← never commit real credentials
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Cache and runtime data
+cache/
+logs/
+data/
+uploads/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.lcov
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
