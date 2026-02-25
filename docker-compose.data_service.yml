@@ -1,0 +1,132 @@
+version: '3.8'
+
+# TradingAgents-CN 数据管理服务 - 独立部署配置
+# 功能：股票数据管理、用户认证、多市场数据提供商、缓存系统、技术分析
+#
+# 使用方法:
+#   1. 复制 .env.data_service 为 .env 并填写配置
+#   2. docker compose -f docker-compose.data_service.yml up -d
+#
+# 服务发现:
+#   当与其他服务在同一 Docker 网络内运行时，自动使用:
+#     MONGODB_HOST=mongodb (容器名)
+#     REDIS_HOST=redis     (容器名)
+#
+# 外部数据库:
+#   若 MongoDB / Redis 部署在容器外，在 .env 中设置对应 HOST/PORT 即可
+
+services:
+
+  # ── 数据管理服务 ─────────────────────────────────────────
+  data-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.data_service
+    image: tradingagents-data-service:latest
+    container_name: tradingagents-data-service
+    ports:
+      - "${DATA_SERVICE_PORT:-8001}:8001"
+    volumes:
+      - ./logs:/app/logs
+      - ./cache:/app/cache
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: "Asia/Shanghai"
+      DOCKER_CONTAINER: "true"
+      # 容器网络内的服务发现（与 mongodb / redis 服务协同时自动生效）
+      MONGODB_HOST: "${MONGODB_HOST:-mongodb}"
+      REDIS_HOST: "${REDIS_HOST:-redis}"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - data-service-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ── MongoDB ──────────────────────────────────────────────
+  mongodb:
+    image: mongo:6.0
+    container_name: tradingagents-data-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGODB_EXPOSE_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGODB_USERNAME:-admin}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
+      MONGO_INITDB_DATABASE: "${MONGODB_DATABASE:-tradingagents}"
+      TZ: "Asia/Shanghai"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - data-service-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  # ── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tradingagents-data-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_EXPOSE_PORT:-6379}:6379"
+    environment:
+      TZ: "Asia/Shanghai"
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass "${REDIS_PASSWORD:-tradingagents123}"
+    volumes:
+      - redis_data:/data
+    networks:
+      - data-service-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+# ── 数据卷 ────────────────────────────────────────────────
+volumes:
+  mongodb_data:
+    driver: local
+    name: tradingagents_data_service_mongodb
+  redis_data:
+    driver: local
+    name: tradingagents_data_service_redis
+
+# ── 网络 ──────────────────────────────────────────────────
+networks:
+  data-service-network:
+    driver: bridge
+    name: tradingagents-data-service-network
